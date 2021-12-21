@@ -27,8 +27,9 @@ class BruteForceLock
   end
 
   def populate
+    array_base = "0" * disc_count
     (from.join.to_i..to.join.to_i).map do |el|
-      array = ("0" * disc_count + el.to_s)[-disc_count..-1].split(%r{\s*}).map(&:to_i)
+      array = (array_base + el.to_s)[-disc_count..-1].split(%r{\s*}).map(&:to_i)
       array unless unified_banned_arrays.include?(array.join)
     end
   end
