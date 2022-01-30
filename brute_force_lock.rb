@@ -25,37 +25,27 @@ class BruteForceLock
 
   Disc = Struct.new(:array, :sum, :trend)
 
-  def approaching_method
-    from.map.with_index do |from_disc, index|
-      back_direction = to[index] > from_disc && (to[index] - from_disc) >= 5 || to[index] < from_disc && (from_disc - to[index]) < 5
-      back_direction ? '-' : '+'
-    end
-  end
+  # WIP
+  def call2
+    board = (0..9).to_a.map { |el| Array.new(disc_count, el.to_s) }
+    exclude.each { |array| array.each.with_index { |el, index| i = el; j = index; board[i][j] = 'X' } }
+    from.each.with_index { |el, index| board[el][index] == 'X' ? board[el][index] += 'F' : board[el][index] = 'F' }
+    to.each.with_index { |el, index| board[el][index] == 'X' ? board[el][index] += 'T' : board[el][index] = 'T' }
+    distances = (Matrix[to] - Matrix[from]).to_a[0]
+    xfs = board.flatten.map.with_index { |el, index | [index / ARRAY_SIZE, index % ARRAY_SIZE] if el == 'XF' }.compact
+    tfs = board.flatten.map.with_index { |el, index | [index / ARRAY_SIZE, index % ARRAY_SIZE] if el == 'TF' }.compact
+    
+    # white_board = (0..9).to_a.map { |_el| Array.new(disc_count, 0) }
+    # distances.sum.each do |iteration|
+    #   white_board[i][j] = iteration
+    # end
 
-
-  # PITFALL: arrays could have same sum but different sequence
-  # TODO: check each value trend to claim array trend
-  # binding.pry if state.sum > 21
-  # struct.trend = :distancing if struct.sum < diff.map(&:abs).sum
-  def initiate_exclude_discs
-    exclude.map do |el|
-      array = (Matrix[el] - Matrix[from]).to_a[0]
-      Disc.new(el, array.sum, :approaching)
-    end
-  end
-
-  def print_initial_values
-    p '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
-    p from
-    p to
-    p exclude
-    p '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+    board = board.reverse
   end
 
   def call
-    print_initial_values
     @disc_completed = Array.new(ARRAY_SIZE, false)
-    @structs = initiate_exclude_discs.filter { |struct| struct.trend == :approaching }
+    initiate_exclude_discs
 
     while state != to do
       diffs_on_step_before_roll = diffs_on_step
@@ -69,28 +59,62 @@ class BruteForceLock
       closest_exclude_arrays_index = closest_exclude_array_score.index(closest_exclude_array_score.min { |pair| pair[0] })
       closest_exclude_arrays_val_indx = closest_exclude_array_score.min { |pair| pair[0] }
       closest_diff_exclude_array = diffs_on_step_before_roll[closest_exclude_arrays_index]
+
       next_disc_to_roll = closest_exclude_arrays_val_indx[1]
-      new_disc_state_value = begin
-        result = state[next_disc_to_roll].public_send(approaching_method[next_disc_to_roll].to_sym, STEP)
-        if result == 10
-          1
-        elsif result.negative?
-          10 + result
-        else
-          result
+      # -------------------------
+      if check_next_roll(next_disc_to_roll)
+        # break
+        next_disc_to_roll
+        state.each.with_index do |el, index|
+          next if index == next_disc_to_roll
+          p "NOTHING" if check_next_roll(el)
         end
+      # -------------------------
+      else
+        new_disc_state_value = next_disc_value(next_disc_to_roll)
+        if new_disc_state_value == to[next_disc_to_roll]
+          disc_completed[next_disc_to_roll] = true
+        end
+        state[next_disc_to_roll] = new_disc_state_value
+        p state
+        @chain.push(@state.dup)
       end
-      if new_disc_state_value == to[next_disc_to_roll]
-        disc_completed[next_disc_to_roll] = true
-      end
-      state[next_disc_to_roll] = new_disc_state_value
-      p state
-      @chain.push(@state)
     end
-    chain
+    # chain
   end
 
   private
+
+  # -------------------------
+  def check_next_roll(key)
+    exclude.map { |array| array == state }.any?(true)
+  end
+  # -------------------------
+
+  def initiate_exclude_discs
+    @structs = exclude.map do |el|
+      array = (Matrix[el] - Matrix[from]).to_a[0]
+      Disc.new(el, array.sum, :approaching)
+    end.filter { |struct| struct.trend == :approaching }
+  end
+
+  def approaching_method
+    from.map.with_index do |from_disc, index|
+      back_direction = to[index] > from_disc && (to[index] - from_disc) >= 5 || to[index] < from_disc && (from_disc - to[index]) < 5
+      back_direction ? '-' : '+'
+    end
+  end
+
+  def next_disc_value(next_disc_to_roll)
+    result = state[next_disc_to_roll].public_send(approaching_method[next_disc_to_roll].to_sym, STEP)
+    if result == 10
+      1
+    elsif result.negative?
+      10 + result
+    else
+      result
+    end
+  end
 
   def diffs_on_step
     structs.map { |struct| (Matrix[struct.array] - Matrix[state]).to_a[0].map(&:abs) }.sort_by { |array| array.sum }
